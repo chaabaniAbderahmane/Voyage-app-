@@ -8,11 +8,10 @@ import uuid
 import unicodedata
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "voyages.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "voyages.db")
 
 
 def get_conn():
-    """Connexion SQLite partagée (une par session Streamlit)."""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -223,7 +222,6 @@ def add_client(trip_id, bus_id, first_name, last_name, gender="NA", phone="", gr
 
 
 def find_returning_client(first_name, last_name):
-    """Cherche un client existant (autre voyage) par nom pour réutiliser ses points/credentials."""
     conn = get_conn()
     row = conn.execute(
         "SELECT * FROM clients WHERE lower(first_name)=lower(?) AND lower(last_name)=lower(?) "
@@ -282,7 +280,7 @@ def checkin_client(client_id, by="client"):
     row = c.execute("SELECT checked_in, points FROM clients WHERE id = ?", (client_id,)).fetchone()
     if row and row["checked_in"] == 1:
         conn.close()
-        return False  # déjà présent
+        return False
     new_points = (row["points"] or 0) + 1
     free_trip = 1 if new_points > 0 and new_points % 10 == 0 else 0
     c.execute(
