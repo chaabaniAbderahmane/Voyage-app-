@@ -1,5 +1,5 @@
 import streamlit as st
-from db import init_db
+from utils.db import init_db
 
 st.set_page_config(
     page_title="Voyages en Bus",
@@ -43,7 +43,7 @@ st.markdown(
 token = st.query_params.get("token")
 if token:
     st.info("Code d'accès détecté — ouverture de votre espace personnel…")
-    st.switch_page("2_🧑‍💼_Espace_Client.py")
+    st.switch_page("pages/2_🧑‍💼_Espace_Client.py")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -51,7 +51,7 @@ with col1:
     st.markdown("### 🛠️ Espace Admin")
     st.write("Créer un voyage, ajouter les voyageurs, gérer les présences, la messagerie.")
     if st.button("Accéder à l'espace admin", use_container_width=True):
-        st.switch_page("1_🛠️_Admin.py")
+        st.switch_page("pages/1_🛠️_Admin.py")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col2:
@@ -59,7 +59,7 @@ with col2:
     st.markdown("### 🧑‍💼 Espace Client")
     st.write("Confirmer votre présence, voir votre place, contacter l'organisateur.")
     if st.button("Accéder à mon espace", use_container_width=True):
-        st.switch_page("2_🧑‍💼_Espace_Client.py")
+        st.switch_page("pages/2_🧑‍💼_Espace_Client.py")
     st.markdown("</div>", unsafe_allow_html=True)
 
 st.divider()
