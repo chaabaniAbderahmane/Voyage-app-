@@ -1,5 +1,5 @@
 import streamlit as st
-from utils.db import init_db
+from db import init_db
 
 st.set_page_config(
     page_title="Voyages en Bus",
