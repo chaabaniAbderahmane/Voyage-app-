@@ -18,8 +18,6 @@ def get_admin_password() -> str:
 
 
 def try_auto_login_from_qr():
-    """Si l'URL contient ?token=..., connecte automatiquement le client
-    (utilisé quand quelqu'un scanne son QR code personnel)."""
     if st.session_state.get("role"):
         return
     token = st.query_params.get("token")
@@ -34,23 +32,23 @@ def try_auto_login_from_qr():
 def login_screen():
     st.markdown(
         """
-        <div style="text-align:center; padding: 1.5rem 0 0.5rem 0;">
+        <div class="hero-banner">
             <h1>🚌 Voyages en Bus</h1>
-            <p style="color:#6b7280;">Connectez-vous à votre espace</p>
+            <p>Gestion des présences, des places et de la fidélité pour vos sorties organisées</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    tab_client, tab_admin = st.tabs(["🧑‍💼 Espace Client", "🛠️ Espace Admin"])
+    tab_client, tab_admin = st.tabs(["🧑‍💼  Espace Client", "🛠️  Espace Admin"])
 
     with tab_client:
-        st.caption("Connexion avec l'identifiant et le mot de passe fournis par l'organisateur, "
-                    "ou en scannant votre QR code personnel.")
+        st.caption("Connectez-vous avec l'identifiant et le mot de passe fournis par l'organisateur, "
+                    "ou scannez votre QR code personnel.")
         with st.form("client_login_form"):
-            u = st.text_input("Identifiant")
+            u = st.text_input("Identifiant", placeholder="ex : dupont-marie")
             p = st.text_input("Mot de passe", type="password")
-            submitted = st.form_submit_button("Se connecter", use_container_width=True)
+            submitted = st.form_submit_button("Se connecter", use_container_width=True, type="primary")
         if submitted:
             client = authenticate_client(u.strip(), p.strip())
             if client:
@@ -64,7 +62,7 @@ def login_screen():
         st.caption("Réservé à l'organisateur du voyage.")
         with st.form("admin_login_form"):
             pwd = st.text_input("Mot de passe admin", type="password")
-            submitted_admin = st.form_submit_button("Se connecter", use_container_width=True)
+            submitted_admin = st.form_submit_button("Se connecter", use_container_width=True, type="primary")
         if submitted_admin:
             if pwd == get_admin_password():
                 st.session_state["role"] = "admin"
@@ -74,6 +72,7 @@ def login_screen():
 
 
 def logout():
-    for key in ("role", "client_id"):
-        st.session_state.pop(key, None)
+    for key in list(st.session_state.keys()):
+        if key in ("role", "client_id", "admin_section"):
+            st.session_state.pop(key, None)
     st.rerun()

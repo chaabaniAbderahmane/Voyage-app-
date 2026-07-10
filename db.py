@@ -27,7 +27,6 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             date TEXT,
-            app_url TEXT,
             created_at TEXT
         );
 
@@ -44,7 +43,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             trip_id INTEGER NOT NULL,
             name TEXT,
-            type TEXT DEFAULT 'solo',
+            type TEXT DEFAULT 'famille',
             FOREIGN KEY(trip_id) REFERENCES trips(id)
         );
 
@@ -118,12 +117,12 @@ def generate_credentials(conn, first_name: str, last_name: str):
 
 # ---------- Trips ----------
 
-def create_trip(name, date, app_url=""):
+def create_trip(name, date):
     conn = get_conn()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO trips (name, date, app_url, created_at) VALUES (?, ?, ?, ?)",
-        (name, date, app_url, datetime.now().isoformat()),
+        "INSERT INTO trips (name, date, created_at) VALUES (?, ?, ?)",
+        (name, date, datetime.now().isoformat()),
     )
     conn.commit()
     tid = c.lastrowid
@@ -145,9 +144,23 @@ def get_trip(trip_id):
     return row
 
 
-def update_trip_url(trip_id, app_url):
+def update_trip(trip_id, name, date):
     conn = get_conn()
-    conn.execute("UPDATE trips SET app_url = ? WHERE id = ?", (app_url, trip_id))
+    conn.execute("UPDATE trips SET name = ?, date = ? WHERE id = ?", (name, date, trip_id))
+    conn.commit()
+    conn.close()
+
+
+def delete_trip(trip_id):
+    conn = get_conn()
+    c = conn.cursor()
+    client_ids = [r["id"] for r in c.execute("SELECT id FROM clients WHERE trip_id = ?", (trip_id,)).fetchall()]
+    for cid in client_ids:
+        c.execute("DELETE FROM messages WHERE client_id = ?", (cid,))
+    c.execute("DELETE FROM clients WHERE trip_id = ?", (trip_id,))
+    c.execute("DELETE FROM groups_tbl WHERE trip_id = ?", (trip_id,))
+    c.execute("DELETE FROM buses WHERE trip_id = ?", (trip_id,))
+    c.execute("DELETE FROM trips WHERE id = ?", (trip_id,))
     conn.commit()
     conn.close()
 
@@ -181,9 +194,35 @@ def get_bus(bus_id):
     return row
 
 
+def update_bus(bus_id, name, rows, seats_per_row):
+    conn = get_conn()
+    conn.execute(
+        "UPDATE buses SET name = ?, rows = ?, seats_per_row = ? WHERE id = ?",
+        (name, rows, seats_per_row, bus_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_bus(bus_id):
+    """Désassigne les voyageurs du bus (place et bus remis à vide) puis supprime le bus."""
+    conn = get_conn()
+    conn.execute("UPDATE clients SET bus_id = NULL, seat = NULL WHERE bus_id = ?", (bus_id,))
+    conn.execute("DELETE FROM buses WHERE id = ?", (bus_id,))
+    conn.commit()
+    conn.close()
+
+
+def count_clients_in_bus(bus_id):
+    conn = get_conn()
+    row = conn.execute("SELECT COUNT(*) n FROM clients WHERE bus_id = ?", (bus_id,)).fetchone()
+    conn.close()
+    return row["n"] if row else 0
+
+
 # ---------- Groups ----------
 
-def create_group(trip_id, name, gtype="solo"):
+def create_group(trip_id, name, gtype="famille"):
     conn = get_conn()
     c = conn.cursor()
     c.execute("INSERT INTO groups_tbl (trip_id, name, type) VALUES (?, ?, ?)", (trip_id, name, gtype))
@@ -195,9 +234,38 @@ def create_group(trip_id, name, gtype="solo"):
 
 def get_groups(trip_id):
     conn = get_conn()
-    rows = conn.execute("SELECT * FROM groups_tbl WHERE trip_id = ?", (trip_id,)).fetchall()
+    rows = conn.execute("SELECT * FROM groups_tbl WHERE trip_id = ? ORDER BY name", (trip_id,)).fetchall()
     conn.close()
     return rows
+
+
+def get_group(group_id):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM groups_tbl WHERE id = ?", (group_id,)).fetchone()
+    conn.close()
+    return row
+
+
+def update_group(group_id, name, gtype):
+    conn = get_conn()
+    conn.execute("UPDATE groups_tbl SET name = ?, type = ? WHERE id = ?", (name, gtype, group_id))
+    conn.commit()
+    conn.close()
+
+
+def delete_group(group_id):
+    conn = get_conn()
+    conn.execute("UPDATE clients SET group_id = NULL WHERE group_id = ?", (group_id,))
+    conn.execute("DELETE FROM groups_tbl WHERE id = ?", (group_id,))
+    conn.commit()
+    conn.close()
+
+
+def count_clients_in_group(group_id):
+    conn = get_conn()
+    row = conn.execute("SELECT COUNT(*) n FROM clients WHERE group_id = ?", (group_id,)).fetchone()
+    conn.close()
+    return row["n"] if row else 0
 
 
 # ---------- Clients ----------
@@ -267,9 +335,48 @@ def authenticate_client(username, password):
     return row
 
 
+def update_client(client_id, first_name, last_name, gender, phone, bus_id, group_id):
+    conn = get_conn()
+    conn.execute(
+        """UPDATE clients SET first_name=?, last_name=?, gender=?, phone=?, bus_id=?, group_id=?
+           WHERE id=?""",
+        (first_name.strip(), last_name.strip(), gender, phone, bus_id, group_id, client_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def regenerate_credentials(client_id):
+    conn = get_conn()
+    client = conn.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
+    username, password, token = generate_credentials(conn, client["first_name"], client["last_name"])
+    conn.execute(
+        "UPDATE clients SET username=?, password=?, token=? WHERE id=?",
+        (username, password, token, client_id),
+    )
+    conn.commit()
+    conn.close()
+    return username, password
+
+
+def delete_client(client_id):
+    conn = get_conn()
+    conn.execute("DELETE FROM messages WHERE client_id = ?", (client_id,))
+    conn.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+    conn.commit()
+    conn.close()
+
+
 def set_client_seat(client_id, seat):
     conn = get_conn()
     conn.execute("UPDATE clients SET seat = ? WHERE id = ?", (seat, client_id))
+    conn.commit()
+    conn.close()
+
+
+def clear_bus_seats(bus_id):
+    conn = get_conn()
+    conn.execute("UPDATE clients SET seat = NULL WHERE bus_id = ?", (bus_id,))
     conn.commit()
     conn.close()
 
@@ -305,7 +412,7 @@ def undo_checkin(client_id):
 
 def use_free_trip(client_id):
     conn = get_conn()
-    conn.execute("UPDATE clients SET free_trip_available = 0 WHERE id = ?", (client_id,))
+    conn.execute("UPDATE clients SET free_trip_available = 0, points = 0 WHERE id = ?", (client_id,))
     conn.commit()
     conn.close()
 
@@ -351,3 +458,40 @@ def unread_count_for_admin(trip_id):
     ).fetchone()
     conn.close()
     return row["n"] if row else 0
+
+
+def unread_count_for_client(client_id):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT COUNT(*) n FROM messages WHERE client_id = ? AND sender = 'admin' AND read_by_client = 0",
+        (client_id,),
+    ).fetchone()
+    conn.close()
+    return row["n"] if row else 0
+
+
+def get_conversations_summary(trip_id):
+    """Liste des voyageurs avec aperçu du dernier message, triée : non-lus d'abord,
+    puis message le plus récent en premier — pour une messagerie façon 'vraie appli de chat'."""
+    conn = get_conn()
+    clients = conn.execute("SELECT * FROM clients WHERE trip_id = ? ORDER BY last_name", (trip_id,)).fetchall()
+    summaries = []
+    for c in clients:
+        last = conn.execute(
+            "SELECT * FROM messages WHERE client_id = ? ORDER BY id DESC LIMIT 1", (c["id"],)
+        ).fetchone()
+        unread = conn.execute(
+            "SELECT COUNT(*) n FROM messages WHERE client_id = ? AND sender = 'client' AND read_by_admin = 0",
+            (c["id"],),
+        ).fetchone()["n"]
+        summaries.append({
+            "id": c["id"],
+            "name": f"{c['first_name']} {c['last_name']}",
+            "preview": (last["text"][:40] + "…") if last and len(last["text"]) > 40 else (last["text"] if last else "Aucun message pour l'instant"),
+            "last_time": last["timestamp"] if last else "",
+            "unread": unread,
+        })
+    conn.close()
+    summaries.sort(key=lambda s: s["last_time"], reverse=True)
+    summaries.sort(key=lambda s: s["unread"] > 0, reverse=True)
+    return summaries

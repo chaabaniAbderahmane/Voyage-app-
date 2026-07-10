@@ -1,41 +1,52 @@
 """
-Algorithme d'attribution des places dans le bus.
+Algorithme de placement automatique dans le bus (v2 — amélioré).
 
-Critères pris en compte, dans cet ordre de priorité :
-1. Les membres d'un même groupe (famille, couple, amis) sont placés cote à cote /
-   sur des sièges contigus, si possible dans la même rangée.
-2. Les voyageurs seuls (solo) sont regroupés par genre quand c'est pertinent
-   (ex : groupe de filles seules ensemble, groupe de garçons seuls ensemble).
-3. Les groupes les plus grands sont placés en premier (plus difficiles à caser).
-4. Le reste des places est rempli dans l'ordre.
+Idée clé : on traite chaque CÔTÉ du bus (gauche / droite) comme une colonne
+continue de sièges, rangée après rangée. Deux sièges consécutifs dans cette
+colonne sont donc soit dans la même rangée, soit dans deux rangées voisines
+du même côté — physiquement proches dans les deux cas. Cela permet de placer
+des groupes plus grands que la largeur d'une rangée (ex: famille de 4 dans un
+bus 2+2) sans les séparer inutilement.
 
-Plan de bus : rangées de `seats_per_row` sièges avec une allée simulée entre les
-sièges de gauche (A, B, ...) et de droite (..., C, D) pour éviter de considérer
-un siège côté couloir opposé comme "adjacent".
+Priorités :
+1. Type de groupe : famille > couple > amis (les familles ont la priorité
+   sur les meilleurs blocs de sièges).
+2. À type égal, les groupes les plus grands sont placés en premier (plus
+   difficiles à caser).
+3. Les voyageurs seuls sont regroupés par genre en "paquets" et traités
+   comme des groupes.
+4. On choisit, pour chaque groupe, le plus petit bloc libre (gauche ou
+   droite) qui peut le contenir en entier (best-fit) afin de ne pas
+   gaspiller les grands blocs. Si aucun bloc ne suffit, le groupe est
+   réparti sur plusieurs blocs en minimisant le nombre de coupures.
 """
+
+GROUP_TYPE_PRIORITY = {"famille": 0, "couple": 1, "amis": 2}
+
+
+def _side_seats(rows: int, seats_per_row: int):
+    """Retourne (sièges_gauche, sièges_droite), chacun ordonné rangée par rangée."""
+    half = max(seats_per_row // 2, 1)
+    left_letters = [chr(ord("A") + i) for i in range(half)]
+    right_letters = [chr(ord("A") + half + i) for i in range(max(seats_per_row - half, 0))]
+    left, right = [], []
+    for r in range(1, rows + 1):
+        for letter in left_letters:
+            left.append(f"{r}{letter}")
+        for letter in right_letters:
+            right.append(f"{r}{letter}")
+    return left, right
 
 
 def generate_seat_map(rows: int, seats_per_row: int = 4):
-    """Retourne une liste ordonnée de codes sièges, avec des marqueurs 'AISLE'
-    entre le bloc gauche et le bloc droit de chaque rangée."""
-    half = seats_per_row // 2
-    letters = [chr(ord("A") + i) for i in range(seats_per_row)]
-    seat_map = []
-    for r in range(1, rows + 1):
-        for i, letter in enumerate(letters):
-            if i == half and half > 0:
-                seat_map.append(f"AISLE-{r}")
-            seat_map.append(f"{r}{letter}")
-    return seat_map
+    left, right = _side_seats(rows, seats_per_row)
+    return left + right
 
 
-def _free_runs(seat_map, occupied_seats):
-    """Retourne la liste des séquences contiguës de sièges libres (séparées par
-    les marqueurs AISLE ou par des sièges déjà occupés)."""
-    runs = []
-    current = []
-    for seat in seat_map:
-        if seat.startswith("AISLE") or seat in occupied_seats:
+def _free_runs(side_seats, occupied):
+    runs, current = [], []
+    for seat in side_seats:
+        if seat in occupied:
             if current:
                 runs.append(current)
                 current = []
@@ -46,74 +57,91 @@ def _free_runs(seat_map, occupied_seats):
     return runs
 
 
-def _best_fit_run(runs, size):
-    """Trouve la plus petite séquence libre qui peut contenir `size` personnes."""
+def _best_fit(runs, size):
     candidates = [r for r in runs if len(r) >= size]
     if not candidates:
         return None
     return min(candidates, key=len)
 
 
-def assign_seats(clients, rows: int, seats_per_row: int = 4):
+def assign_seats(clients, rows: int, seats_per_row: int = 4, group_types: dict = None):
     """
-    clients : liste de dicts avec au minimum
-        {"id": int, "group_id": int|None, "gender": "H"/"F"/"NA"}
-    Retourne un dict {client_id: seat_code}.
+    clients : liste de dicts {"id":, "group_id":, "gender":}
+    group_types : dict {group_id: "famille"|"couple"|"amis"} pour la priorité de placement
+    Retourne (assignment: {client_id: seat}, unassigned: [client_id], total_seats: int)
     """
-    seat_map = generate_seat_map(rows, seats_per_row)
-    total_seats = len([s for s in seat_map if not s.startswith("AISLE")])
-    occupied = set()
+    group_types = group_types or {}
+    left, right = _side_seats(rows, seats_per_row)
+    total_seats = len(left) + len(right)
+    occupied_left, occupied_right = set(), set()
     assignment = {}
 
-    # 1) Regrouper par group_id (None -> solo, un groupe par personne)
     groups = {}
     for cl in clients:
         gid = cl.get("group_id")
         key = gid if gid is not None else f"solo-{cl['id']}"
         groups.setdefault(key, []).append(cl)
 
-    real_groups = [members for key, members in groups.items() if not str(key).startswith("solo-")]
+    real_groups = [(key, members) for key, members in groups.items() if not str(key).startswith("solo-")]
     solos = [members[0] for key, members in groups.items() if str(key).startswith("solo-")]
 
-    # 2) Trier les vrais groupes du plus grand au plus petit
-    real_groups.sort(key=len, reverse=True)
+    def sort_key(item):
+        key, members = item
+        gtype = group_types.get(key, "amis")
+        return (GROUP_TYPE_PRIORITY.get(gtype, 3), -len(members))
 
-    # 3) Regrouper les solos par genre pour les rapprocher (paquets de 2 à 4)
+    real_groups.sort(key=sort_key)
+
+    # Regrouper les solos par genre en paquets de la taille d'un demi-rang (pour rester compact)
     solos_by_gender = {}
     for s in solos:
         solos_by_gender.setdefault(s.get("gender", "NA"), []).append(s)
 
+    pack_size = max(seats_per_row // 2, 2)
     solo_packs = []
     for gender, members in solos_by_gender.items():
-        pack_size = 4 if seats_per_row >= 4 else 2
         for i in range(0, len(members), pack_size):
-            solo_packs.append(members[i:i + pack_size])
+            solo_packs.append((f"solo-pack-{gender}-{i}", members[i:i + pack_size]))
 
-    all_groups_to_place = real_groups + solo_packs
+    to_place = real_groups + solo_packs
 
-    # 4) Placement : best-fit, sinon découpage en sous-blocs
-    for members in all_groups_to_place:
+    for _key, members in to_place:
         size = len(members)
-        runs = _free_runs(seat_map, occupied)
-        run = _best_fit_run(runs, size)
-        if run is not None:
-            chosen = run[:size]
+        runs_left = _free_runs(left, occupied_left)
+        runs_right = _free_runs(right, occupied_right)
+        best_left = _best_fit(runs_left, size)
+        best_right = _best_fit(runs_right, size)
+
+        chosen_run, chosen_occupied = None, None
+        if best_left and best_right:
+            if len(best_left) <= len(best_right):
+                chosen_run, chosen_occupied = best_left, occupied_left
+            else:
+                chosen_run, chosen_occupied = best_right, occupied_right
+        elif best_left:
+            chosen_run, chosen_occupied = best_left, occupied_left
+        elif best_right:
+            chosen_run, chosen_occupied = best_right, occupied_right
+
+        if chosen_run is not None:
+            chosen = chosen_run[:size]
+            for cl, seat in zip(members, chosen):
+                assignment[cl["id"]] = seat
+                chosen_occupied.add(seat)
         else:
-            # Pas de bloc assez grand : on découpe le groupe sur plusieurs runs
-            chosen = []
-            remaining = size
-            for r in sorted(runs, key=len, reverse=True):
-                if remaining <= 0:
+            # Aucun bloc unique assez grand : on répartit en minimisant le nb de coupures
+            idx = 0
+            pool = sorted(runs_left + runs_right, key=len, reverse=True)
+            for run in pool:
+                if idx >= size:
                     break
-                take = r[:remaining]
-                chosen.extend(take)
-                remaining -= len(take)
-            if remaining > 0:
-                # Plus assez de place dans le bus
-                chosen = chosen  # on placera ce qu'on peut, le reste restera sans siège
-        for cl, seat in zip(members, chosen):
-            assignment[cl["id"]] = seat
-            occupied.add(seat)
+                take_n = min(len(run), size - idx)
+                take = run[:take_n]
+                for seat in take:
+                    (occupied_left if seat in left else occupied_right).add(seat)
+                for cl, seat in zip(members[idx:idx + take_n], take):
+                    assignment[cl["id"]] = seat
+                idx += take_n
 
     unassigned = [cl["id"] for cl in clients if cl["id"] not in assignment]
     return assignment, unassigned, total_seats

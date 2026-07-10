@@ -1,14 +1,12 @@
 """Génération de QR codes pour l'accès rapide des clients."""
 import io
 import qrcode
+from config import APP_URL
 
 
-def build_client_link(app_url: str, token: str) -> str:
-    app_url = (app_url or "").rstrip("/")
-    if not app_url:
-        # Lien relatif si l'URL de l'app n'a pas encore été configurée
-        return f"?token={token}"
-    return f"{app_url}/Espace_Client?token={token}"
+def build_client_link(token: str) -> str:
+    """L'URL publique est fixée dans config.py (non modifiable depuis l'interface)."""
+    return f"{APP_URL.rstrip('/')}/?token={token}"
 
 
 def make_qr_image_bytes(data: str) -> bytes:

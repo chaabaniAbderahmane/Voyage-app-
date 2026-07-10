@@ -1,19 +1,37 @@
 """
 Vue Client. IMPORTANT : render_client() ne doit être appelée que si
-st.session_state['role'] == 'client' (vérifié dans app.py). Un client
-n'a accès à aucune fonction d'administration : pas d'import de admin_view ici.
+st.session_state['role'] == 'client' (vérifié dans app.py).
 """
 import streamlit as st
 
 from db import (
     get_client_by_id, checkin_client, get_trip, get_bus,
-    send_message, get_messages, mark_read,
+    send_message, get_messages, mark_read, unread_count_for_client,
 )
 from auth import logout
 
 
+def _chat_section(client):
+    st.subheader("💬 Discuter avec l'organisateur")
+    mark_read(client["id"], "client")
+    msgs = get_messages(client["id"])
+    box = st.container(height=320, border=True)
+    with box:
+        if not msgs:
+            st.caption("Aucun message pour l'instant. Écrivez-nous si vous avez une question !")
+        for m in msgs:
+            role = "user" if m["sender"] == "client" else "assistant"
+            avatar = "🧑" if m["sender"] == "client" else "🛠️"
+            with st.chat_message(role, avatar=avatar):
+                st.write(m["text"])
+                st.caption(m["timestamp"][:16].replace("T", " "))
+    prompt = st.chat_input("Écrire un message à l'organisateur...")
+    if prompt:
+        send_message(client["id"], "client", prompt)
+        st.rerun()
+
+
 def render_client():
-    # --- Garde-fou de rôle : double sécurité en plus du contrôle dans app.py ---
     if st.session_state.get("role") != "client":
         st.error("Accès refusé : cette section est réservée aux voyageurs.")
         st.stop()
@@ -25,12 +43,28 @@ def render_client():
         logout()
         return
 
-    st.title("🧑‍💼 Mon espace voyageur")
+    st.markdown(
+        f"""
+        <div class="hero-banner">
+            <h1>🧑‍💼 {client['first_name']} {client['last_name']}</h1>
+            <p>Bienvenue dans votre espace voyageur</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    unread_c = unread_count_for_client(client["id"])
+    if unread_c:
+        st.markdown(
+            f"<div class='notif-banner'>🔔 Vous avez <b>{unread_c}</b> nouveau(x) message(s) "
+            f"de l'organisateur — répondez juste en dessous 👇</div>",
+            unsafe_allow_html=True,
+        )
+        _chat_section(client)
+        st.divider()
 
     trip = get_trip(client["trip_id"])
     bus = get_bus(client["bus_id"]) if client["bus_id"] else None
-
-    st.success(f"Bienvenue, **{client['first_name']} {client['last_name']}** 👋")
 
     col1, col2 = st.columns(2)
     col1.metric("Voyage", trip["name"] if trip else "—")
@@ -60,26 +94,9 @@ def render_client():
         "à l'organisateur de confirmer sa présence directement depuis l'espace admin."
     )
 
-    st.divider()
-    st.subheader("💬 Contacter l'organisateur")
-    mark_read(client["id"], "client")
-    msgs = get_messages(client["id"])
-    box = st.container(height=300)
-    with box:
-        if not msgs:
-            st.caption("Aucun message pour l'instant. Écrivez-nous si vous avez une question !")
-        for m in msgs:
-            role = "🧑 Vous" if m["sender"] == "client" else "🛠️ Organisateur"
-            st.markdown(f"**{role}** — _{m['timestamp'][:16].replace('T', ' ')}_")
-            st.write(m["text"])
-            st.divider()
-
-    with st.form("client_msg", clear_on_submit=True):
-        text = st.text_input("Votre message")
-        send = st.form_submit_button("Envoyer")
-    if send and text:
-        send_message(client["id"], "client", text)
-        st.rerun()
+    if not unread_c:
+        st.divider()
+        _chat_section(client)
 
     st.divider()
     if st.button("🚪 Se déconnecter"):
