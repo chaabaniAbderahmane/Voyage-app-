@@ -3,7 +3,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import streamlit as st
 
-from utils.db import (
+from db import (
     init_db, get_client_by_token, authenticate_client, get_client_by_id,
     checkin_client, get_trip, get_bus, send_message, get_messages, mark_read,
 )

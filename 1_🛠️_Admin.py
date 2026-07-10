@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 
-from utils.db import (
+from db import (
     init_db, create_trip, get_trips, get_trip, update_trip_url,
     create_bus, get_buses, get_bus,
     create_group, get_groups,
@@ -13,9 +13,9 @@ from utils.db import (
     set_client_seat, checkin_client, undo_checkin,
     send_message, get_messages, mark_read, unread_count_for_admin,
 )
-from utils.seating import assign_seats
-from utils.qr_utils import build_client_link, make_qr_image_bytes
-from utils.auth import require_admin
+from seating import assign_seats
+from qr_utils import build_client_link, make_qr_image_bytes
+from auth import require_admin
 
 st.set_page_config(page_title="Admin — Voyages en Bus", page_icon="🛠️", layout="wide")
 init_db()
