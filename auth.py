@@ -48,7 +48,7 @@ def login_screen():
         with st.form("client_login_form"):
             u = st.text_input("Identifiant", placeholder="ex : dupont-marie")
             p = st.text_input("Mot de passe", type="password")
-            submitted = st.form_submit_button("Se connecter", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("Se connecter", width='stretch', type="primary")
         if submitted:
             client = authenticate_client(u.strip(), p.strip())
             if client:
@@ -62,7 +62,7 @@ def login_screen():
         st.caption("Réservé à l'organisateur du voyage.")
         with st.form("admin_login_form"):
             pwd = st.text_input("Mot de passe admin", type="password")
-            submitted_admin = st.form_submit_button("Se connecter", use_container_width=True, type="primary")
+            submitted_admin = st.form_submit_button("Se connecter", width='stretch', type="primary")
         if submitted_admin:
             if pwd == get_admin_password():
                 st.session_state["role"] = "admin"

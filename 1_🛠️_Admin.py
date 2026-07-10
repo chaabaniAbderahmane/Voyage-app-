@@ -85,7 +85,7 @@ with tabs[0]:
     if buses:
         st.dataframe(
             pd.DataFrame([{"Bus": b["name"], "Rangées": b["rows"], "Sièges/rangée": b["seats_per_row"]} for b in buses]),
-            use_container_width=True, hide_index=True,
+            width='stretch', hide_index=True,
         )
     else:
         st.info("Ajoutez au moins un bus pour pouvoir affecter des voyageurs.")
@@ -175,7 +175,7 @@ with tabs[1]:
                     added.append({"Nom": f"{fn} {ln}", "Identifiant": uname, "Mot de passe": pwd})
                 if added:
                     st.success(f"{len(added)} voyageur(s) importé(s).")
-                    st.dataframe(pd.DataFrame(added), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(added), width='stretch', hide_index=True)
                 else:
                     st.warning("Aucune ligne valide détectée (il faut au moins Prénom + Nom).")
 
@@ -192,7 +192,7 @@ with tabs[1]:
             "Place": c["seat"] or "—",
             "Points": c["points"],
         } for c in clients])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
     else:
         st.info("Aucun voyageur ajouté pour le moment.")
 
@@ -228,7 +228,7 @@ with tabs[2]:
                 "Genre": c["gender"],
                 "Place": c["seat"] or "Non attribuée",
             } for c in bus_clients])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width='stretch', hide_index=True)
 
 # ================= TAB 4 : Présences =================
 with tabs[3]:
@@ -295,7 +295,7 @@ with tabs[4]:
                         cols = st.columns(ncols)
                         for col, c in zip(cols, row_ui):
                             link_c = build_client_link(trip["app_url"], c["token"])
-                            col.image(make_qr_image_bytes(link_c), caption=f"{c['first_name']} {c['last_name']}", use_container_width=True)
+                            col.image(make_qr_image_bytes(link_c), caption=f"{c['first_name']} {c['last_name']}", width='stretch')
 
 # ================= TAB 6 : Messagerie =================
 with tabs[5]:
@@ -339,6 +339,6 @@ with tabs[6]:
             "Points": c["points"],
             "Voyage offert disponible": "🎁 Oui" if c["free_trip_available"] else "Non",
         } for c in clients]).sort_values("Points", ascending=False)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
     else:
         st.info("Aucun voyageur pour l'instant.")

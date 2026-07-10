@@ -70,7 +70,7 @@ def render_admin():
                 st.rerun()
 
         st.divider()
-        if st.button("🚪 Se déconnecter", use_container_width=True):
+        if st.button("🚪 Se déconnecter", width='stretch'):
             logout()
 
     if not current_trip_id:
@@ -94,7 +94,7 @@ def render_admin():
             )
         with c2:
             st.write("")
-            if st.button("Voir les messages", key="goto_msgs", use_container_width=True):
+            if st.button("Voir les messages", key="goto_msgs", width='stretch'):
                 st.session_state["admin_section"] = "💬 Messagerie"
                 st.rerun()
 
@@ -132,7 +132,7 @@ def render_admin():
             st.subheader("Groupes")
             gdata = [{"Groupe": g["name"], "Type": GROUP_TYPE_LABELS.get(g["type"], g["type"]),
                       "Membres": count_clients_in_group(g["id"])} for g in groups]
-            st.dataframe(pd.DataFrame(gdata), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(gdata), width='stretch', hide_index=True)
 
     # ================= VOYAGE & BUS =================
     elif section == "🚌 Voyage & bus":
@@ -280,7 +280,7 @@ def render_admin():
                 edited_df = st.data_editor(
                     base_df,
                     num_rows="dynamic",
-                    use_container_width=True,
+                    width='stretch',
                     column_config={
                         "Genre": st.column_config.SelectboxColumn(options=["NA", "F", "H"], required=True),
                         "Groupe": st.column_config.SelectboxColumn(options=group_options, required=True),
@@ -306,7 +306,7 @@ def render_admin():
                         added.append({"Nom": f"{fn} {ln}", "Identifiant": uname, "Mot de passe": pwd})
                     if added:
                         st.success(f"{len(added)} voyageur(s) importé(s).")
-                        st.dataframe(pd.DataFrame(added), use_container_width=True, hide_index=True)
+                        st.dataframe(pd.DataFrame(added), width='stretch', hide_index=True)
                     else:
                         st.warning("Aucune ligne valide détectée (Prénom + Nom requis).")
 
@@ -327,7 +327,7 @@ def render_admin():
                 "Place": c["seat"] or "—",
                 "Points": c["points"],
             } for c in filtered])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width='stretch', hide_index=True)
             st.download_button(
                 "⬇️ Exporter la liste (CSV)",
                 data=df.to_csv(index=False).encode("utf-8"),
@@ -406,7 +406,7 @@ def render_admin():
                     "Genre": c["gender"],
                     "Place": c["seat"] or "Non attribuée",
                 } for c in bus_clients])
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.dataframe(df, width='stretch', hide_index=True)
 
     # ================= PRÉSENCES =================
     elif section == "✅ Présences":
@@ -472,7 +472,7 @@ def render_admin():
                             cols = st.columns(ncols)
                             for col, c in zip(cols, row_ui):
                                 link_c = build_client_link(c["token"])
-                                col.image(make_qr_image_bytes(link_c), caption=f"{c['first_name']} {c['last_name']}", use_container_width=True)
+                                col.image(make_qr_image_bytes(link_c), caption=f"{c['first_name']} {c['last_name']}", width='stretch')
 
     # ================= MESSAGERIE =================
     elif section == "💬 Messagerie":

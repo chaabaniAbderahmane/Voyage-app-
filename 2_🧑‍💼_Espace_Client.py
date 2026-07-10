@@ -71,7 +71,7 @@ if client["checked_in"]:
     st.info(f"✅ Votre présence a déjà été confirmée ({'par vous' if client['checkin_by']=='client' else 'par un organisateur'}).")
 else:
     st.write("Merci de confirmer votre présence à l'arrivée dans le bus :")
-    if st.button("✅ Je suis présent(e)", use_container_width=True, type="primary"):
+    if st.button("✅ Je suis présent(e)", width='stretch', type="primary"):
         checkin_client(client["id"], by="client")
         st.rerun()
 
