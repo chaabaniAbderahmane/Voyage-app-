@@ -1,4 +1,6 @@
-streamlit>=1.36
-pandas>=2.0
-qrcode[pil]>=7.4
-pillow>=10.0
+streamlit==1.45.1
+pandas==2.2.3
+numpy==2.2.6
+pyarrow==19.0.1
+qrcode[pil]==8.2
+pillow==11.3.0
